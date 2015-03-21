@@ -1,0 +1,285 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Multi-Machine Setup with Vagrant and Saltstack | mbrgm.</title>
+  <meta name="author" content="Marius Bergmann">
+  
+  <meta name="description" content="Vagrant is a great way for developing and testing your
+configurations before deploying to real hosts. In combination with the
+Saltstack provisioner, you can run your salt
+states on virtual machines and achieve really fast iteration cycles. While the
+Vagrant docs give a
+great example for masterless quickstart
+with Vagrant and Saltstack, they do not elaborate on multi-machine
+configurations, like you are likely to encounter in bigger setups.
+In this post I will present you my two-machine Vagrantfile, which can be used
+as a starting point for your individual setup. My example configures a master
+host running salt-master and one minion, which will be provisioned for running
+Docker.">
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  <meta property="og:title" content="Multi-Machine Setup with Vagrant and Saltstack"/>
+  <meta property="og:site_name" content="mbrgm."/>
+
+  
+    <meta property="og:image" content="undefined"/>
+  
+
+  <link href="/favicon.png" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="mbrgm." type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">mbrgm.</a></h1>
+  <h2><a href="/">You just found my notebook.</a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/blog/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2014-11-14T07:50:00.000Z"><a href="/blog/2014/11/14/multi-machine-setup-with-vagrant-and-saltstack/">2014-11-14</a></time>
+      
+      
+  
+    <h1 class="title">Multi-Machine Setup with Vagrant and Saltstack</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p><a href="http://vagrantup.com" target="_blank" rel="external">Vagrant</a> is a great way for developing and testing your
+configurations before deploying to real hosts. In combination with the
+<a href="http://www.saltstack.com/" target="_blank" rel="external">Saltstack</a> provisioner, you can run your salt
+states on virtual machines and achieve really fast iteration cycles. While the
+Vagrant docs give a
+<a href="https://docs.vagrantup.com/v2/provisioning/salt.html" target="_blank" rel="external">great example for masterless quickstart</a>
+with Vagrant and Saltstack, they do not elaborate on multi-machine
+configurations, like you are likely to encounter in bigger setups.</p>
+<p>In this post I will present you my two-machine Vagrantfile, which can be used
+as a starting point for your individual setup. My example configures a master
+host running salt-master and one minion, which will be provisioned for running
+<a href="http://docker.com" target="_blank" rel="external">Docker</a>.</p>
+<a id="more"></a>
+<h2 id="tl;dr">tl;dr</h2><p>You can find the repository for this example
+<a href="https://github.com/mbrgm/vagrant-saltstack-example" target="_blank" rel="external">on Github</a>.</p>
+<p>First, clone the repository:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ git <span class="built_in">clone</span> https://github.com/mbrgm/vagrant-saltstack-example.git</span><br></pre></td></tr></table></figure>
+<p>You need the
+<a href="https://github.com/smdahlen/vagrant-hostmanager" target="_blank" rel="external">vagrant-hostmanager</a> and 
+<a href="https://github.com/fgrehm/vagrant-cachier" target="_blank" rel="external">vagrant-cachier</a> plugins, so
+install them:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ vagrant plugin install vagrant-hostmanager vagrant-cachier</span><br></pre></td></tr></table></figure>
+<p>Then, bring the vagrant hosts up from inside your working copy:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cd</span> vagrant-saltstack-example</span><br><span class="line">$ vagrant up</span><br></pre></td></tr></table></figure>
+<p>You can now ssh into the master and run the salt highstate:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ vagrant ssh master1 -c <span class="string">"sudo salt '*' state.highstate"</span></span><br></pre></td></tr></table></figure>
+<p>For simplicity, I also added a target running that command in a Makefile:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ make update</span><br></pre></td></tr></table></figure>
+<h2 id="Detailed_description">Detailed description</h2><p>This section explains the Vagrantfile in greater detail. First, I’ll describe
+the individual sections. You can find the complete file at the end of the post.</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">#===================</span></span><br><span class="line"><span class="comment"># Package cache</span></span><br><span class="line"><span class="comment">#===================</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> <span class="constant">Vagrant</span>.has_plugin?(<span class="string">"vagrant-cachier"</span>)</span><br><span class="line">  config.cache.scope = <span class="symbol">:box</span></span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+<p>I strongly recommend you use the
+<a href="https://github.com/fgrehm/vagrant-cachier" target="_blank" rel="external">vagrant-cachier</a> plugin for your
+Vagrantfiles. It shares a common package cache among similar VM instances and
+has support for multiple package managers and Linux distros. We set the scope
+to the ‘box’ level, which means that machines running from the same base box
+share a common cache.</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#================</span></span><br><span class="line"><span class="comment"># Networking</span></span><br><span class="line"><span class="comment">#================</span></span><br><span class="line"></span><br><span class="line">config.vm.network <span class="symbol">:private_network</span>, <span class="symbol">type:</span> <span class="string">"dhcp"</span></span><br><span class="line"></span><br><span class="line">config.hostmanager.enabled = <span class="keyword">true</span></span><br><span class="line">config.hostmanager.ignore_private_ip = <span class="keyword">false</span></span><br><span class="line">config.hostmanager.ip_resolver = proc <span class="keyword">do</span> |vm, resolving_vm|</span><br><span class="line">  <span class="keyword">if</span> vm.id</span><br><span class="line">    <span class="string">`VBoxManage guestproperty get <span class="subst">#&#123;vm.id&#125;</span> "/VirtualBox/GuestInfo/Net/1/V4/IP"`</span>.split()[<span class="number">1</span>]</span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line">config.vm.provision <span class="symbol">:hostmanager</span></span><br></pre></td></tr></table></figure>
+<p>We configure our machines to use an additional private network for
+communication. Getting IPs via DHCP saves us the trouble of configuring them
+manually for each machine. Then we enable the hostmanager plugin. The
+hostmanager manages the /etc/hosts file of each machine, so that machines can
+lookup each other’s IP using the Vagrant hostnames and optional aliases. This
+enables us to specify a ‘salt’ alias for the salt-master host, so the minions
+can connect to the master without any additional configuration. The custom IP
+resolver is a workaround to make hostmanager work with DHCP addresses. Once
+<a href="https://github.com/smdahlen/vagrant-hostmanager/issues/86" target="_blank" rel="external">smdahlen/vagrant-hostmanager#86</a>
+is resolved, this should be obsolete. In the last line, we tell vagrant to use
+the hostmanager provisioner.</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#==============</span></span><br><span class="line"><span class="comment"># Machines</span></span><br><span class="line"><span class="comment">#==============</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Set array of hostnames</span></span><br><span class="line">minions = [ <span class="string">'minion1'</span> ]</span><br><span class="line"></span><br><span class="line"><span class="comment">#-----------------</span></span><br><span class="line"><span class="comment"># Salt master</span></span><br><span class="line"><span class="comment">#-----------------</span></span><br><span class="line"></span><br><span class="line">config.vm.define <span class="string">"master1"</span> <span class="keyword">do</span> |node|</span><br><span class="line"></span><br><span class="line">  node.vm.box      = <span class="string">"ubuntu-14.10-server-64"</span></span><br><span class="line">  node.vm.hostname = <span class="string">"master1"</span></span><br><span class="line">  node.hostmanager.aliases = <span class="string">%w(salt)</span></span><br><span class="line"></span><br><span class="line">  node.vm.synced_folder <span class="string">"./salt/roots/salt"</span>, <span class="string">"/srv/salt"</span></span><br><span class="line"></span><br><span class="line">  node.vm.provision <span class="symbol">:salt</span> <span class="keyword">do</span> |salt|</span><br><span class="line"></span><br><span class="line">    salt.install_master = <span class="keyword">true</span></span><br><span class="line"></span><br><span class="line">    master_keys_hash = &#123; <span class="string">"master1"</span> =&gt; <span class="string">"./salt/keys/master1/minion.pub"</span> &#125;</span><br><span class="line">    minion_keys_hash = <span class="constant">Hash</span>[minions.map&#123;</span><br><span class="line">      |hostname| [hostname, <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pub"</span>]</span><br><span class="line">    &#125;]</span><br><span class="line"></span><br><span class="line">    salt.seed_master = master_keys_hash.merge(minion_keys_hash)</span><br><span class="line"></span><br><span class="line">    salt.minion_key = <span class="string">"./salt/keys/master1/minion.pem"</span></span><br><span class="line">    salt.minion_pub = <span class="string">"./salt/keys/master1/minion.pub"</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+<p>In order to easily support multiple minions, we define a list of hostnames,
+which will later be mapped to according minion configurations.  Next, we define
+our salt master. As I wrote before, the hostmanager plugin can add additional
+aliases for a host. That way minions will be able to reach the salt-master
+under the ‘salt’ hostname. The salt root directory is shared using a synced
+folder. If you want an additional pillar root, you must add another synced
+folder. <code>salt.install_master = true</code> tells the salt provisioner that this
+machine is going to be a a salt-master (the salt-minion is installed by
+default).</p>
+<p>The Vagrant Saltstack provisioner offers a way for preseeding the master keys,
+so you don’t have to ssh into the master and accept them manually. The hostname
+=&gt; pubkey map is created dynamically using the list of minion hostnames. I
+included keys for one master and one minion in the example repo. If you
+want to create your own keys or increase the number of minions, you can run
+<code>make genkeys</code> from the repository root (provided you have openssl
+installed). This task takes the configured machines’ hostnames and creates
+a public/private key pair for each one.</p>
+<p>In order to make the preseeded keys work, we also have to configure the minions
+to use the generated keys via the <code>salt.minion_key</code> and <code>salt.minion_pub</code>
+options. As the master host also runs a salt-minion daemon, we have to tell it
+the location of its keypair as well.</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#------------------</span></span><br><span class="line"><span class="comment"># Salt minions</span></span><br><span class="line"><span class="comment">#------------------</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Create a machine for each hostname</span></span><br><span class="line">minions.each <span class="keyword">do</span> |hostname|</span><br><span class="line">  config.vm.define hostname <span class="keyword">do</span> |node|</span><br><span class="line"></span><br><span class="line">    node.vm.box      = <span class="string">"ubuntu-14.10-server-64"</span></span><br><span class="line">    node.vm.hostname = hostname </span><br><span class="line"></span><br><span class="line">    node.vm.provision <span class="symbol">:salt</span> <span class="keyword">do</span> |salt|</span><br><span class="line">      salt.minion_key = <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pem"</span></span><br><span class="line">      salt.minion_pub = <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pub"</span></span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+<p>The last section of the Vagrantfile creates a machine running salt-minion for
+every hostname in the <code>minions</code> list. There is nothing special about the minion
+configuration. As with the master, the minions must use the generated keys for
+the preseeding to work.</p>
+<p>You can now bring the configured machines up and start your salt development:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ vagrant up</span><br><span class="line"></span><br><span class="line"><span class="comment"># ... wait for machines to be provisioned</span></span><br><span class="line"></span><br><span class="line">$ vagrant ssh master1 -c <span class="string">"sudo salt '*' test.ping"</span></span><br><span class="line">master1:</span><br><span class="line">    True</span><br><span class="line">minion1:</span><br><span class="line">    True</span><br><span class="line">Connection to <span class="number">127.0</span>.<span class="number">0.1</span> closed.</span><br></pre></td></tr></table></figure>
+<p>The salt state tree in the example repo configures minion1 to be a docker host.
+I also included a make task for quickly running <code>state.highstate</code> during
+development, so a simple</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ make update</span><br></pre></td></tr></table></figure>
+<p>should get your docker host up and running. Note that no states have been
+specified for the master1 minion, so salt will give you a warning about that.</p>
+<p>And, at last, the complete Vagrantfile. Have fun!</p>
+<figure class="highlight ruby"><figcaption><span>Vagrantfile</span><a href="https://github.com/mbrgm/vagrant-saltstack-example/blob/73e644e865cfa3989c657769b734e4496103b235/Vagrantfile" target="_blank" rel="external">View on GitHub</a></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -*- mode: ruby -*-</span></span><br><span class="line"><span class="comment"># vi: set ft=ruby :</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Vagrantfile API/syntax version. Don't touch unless you know what you're doing!</span></span><br><span class="line"><span class="constant">VAGRANTFILE_API_VERSION</span> = <span class="string">"2"</span></span><br><span class="line"></span><br><span class="line"><span class="constant">Vagrant</span>.configure(<span class="constant">VAGRANTFILE_API_VERSION</span>) <span class="keyword">do</span> |config|</span><br><span class="line"></span><br><span class="line">  <span class="comment">#===================</span></span><br><span class="line">  <span class="comment"># Package cache</span></span><br><span class="line">  <span class="comment">#===================</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> <span class="constant">Vagrant</span>.has_plugin?(<span class="string">"vagrant-cachier"</span>)</span><br><span class="line">    config.cache.scope = <span class="symbol">:box</span></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line">  </span><br><span class="line">  <span class="comment">#================</span></span><br><span class="line">  <span class="comment"># Networking</span></span><br><span class="line">  <span class="comment">#================</span></span><br><span class="line"></span><br><span class="line">  config.vm.network <span class="symbol">:private_network</span>, <span class="symbol">type:</span> <span class="string">"dhcp"</span></span><br><span class="line"></span><br><span class="line">  config.hostmanager.enabled = <span class="keyword">true</span></span><br><span class="line">  config.hostmanager.ignore_private_ip = <span class="keyword">false</span></span><br><span class="line">  config.hostmanager.ip_resolver = proc <span class="keyword">do</span> |vm, resolving_vm|</span><br><span class="line">    <span class="keyword">if</span> vm.id</span><br><span class="line">      <span class="string">`VBoxManage guestproperty get <span class="subst">#&#123;vm.id&#125;</span> "/VirtualBox/GuestInfo/Net/1/V4/IP"`</span>.split()[<span class="number">1</span>]</span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line">  config.vm.provision <span class="symbol">:hostmanager</span></span><br><span class="line"></span><br><span class="line">  </span><br><span class="line">  <span class="comment">#==============</span></span><br><span class="line">  <span class="comment"># Machines</span></span><br><span class="line">  <span class="comment">#==============</span></span><br><span class="line">  </span><br><span class="line">  <span class="comment"># Set array of hostnames</span></span><br><span class="line">  minions = [ <span class="string">'minion1'</span> ]</span><br><span class="line"></span><br><span class="line">  <span class="comment">#-----------------</span></span><br><span class="line">  <span class="comment"># Salt master</span></span><br><span class="line">  <span class="comment">#-----------------</span></span><br><span class="line"></span><br><span class="line">  config.vm.define <span class="string">"master1"</span> <span class="keyword">do</span> |node|</span><br><span class="line"></span><br><span class="line">    node.vm.box      = <span class="string">"ubuntu-14.10-server-64"</span></span><br><span class="line">    node.vm.hostname = <span class="string">"master1"</span></span><br><span class="line">    node.hostmanager.aliases = <span class="string">%w(salt)</span></span><br><span class="line"></span><br><span class="line">    node.vm.synced_folder <span class="string">"./salt/roots/salt"</span>, <span class="string">"/srv/salt"</span></span><br><span class="line"></span><br><span class="line">    node.vm.provision <span class="symbol">:salt</span> <span class="keyword">do</span> |salt|</span><br><span class="line"></span><br><span class="line">      salt.install_master = <span class="keyword">true</span></span><br><span class="line"></span><br><span class="line">      master_keys_hash = &#123; <span class="string">"master1"</span> =&gt; <span class="string">"./salt/keys/master1/minion.pub"</span> &#125;</span><br><span class="line">      minion_keys_hash = <span class="constant">Hash</span>[minions.map&#123;</span><br><span class="line">        |hostname| [hostname, <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pub"</span>]</span><br><span class="line">      &#125;]</span><br><span class="line"></span><br><span class="line">      salt.seed_master = master_keys_hash.merge(minion_keys_hash)</span><br><span class="line"></span><br><span class="line">      salt.minion_key = <span class="string">"./salt/keys/master1/minion.pem"</span></span><br><span class="line">      salt.minion_pub = <span class="string">"./salt/keys/master1/minion.pub"</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line">  </span><br><span class="line">  <span class="comment">#------------------</span></span><br><span class="line">  <span class="comment"># Salt minions</span></span><br><span class="line">  <span class="comment">#------------------</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># Create a machine for each hostname</span></span><br><span class="line">  minions.each <span class="keyword">do</span> |hostname|</span><br><span class="line">    config.vm.define hostname <span class="keyword">do</span> |node|</span><br><span class="line"></span><br><span class="line">      node.vm.box      = <span class="string">"ubuntu-14.10-server-64"</span></span><br><span class="line">      node.vm.hostname = hostname </span><br><span class="line"></span><br><span class="line">      node.vm.provision <span class="symbol">:salt</span> <span class="keyword">do</span> |salt|</span><br><span class="line">        salt.minion_key = <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pem"</span></span><br><span class="line">        salt.minion_pub = <span class="string">"./salt/keys/<span class="subst">#&#123;hostname&#125;</span>/minion.pub"</span></span><br><span class="line">      <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">  <span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    <footer>
+      
+        
+  
+  <div class="categories">
+    <a href="/blog/categories/configuration-management/">Configuration Management</a>, <a href="/blog/categories/configuration-management/virtualisierung/">Virtualisierung</a>
+  </div>
+
+        
+  
+  <div class="tags">
+    <a href="/blog/tags/docker/">docker</a>, <a href="/blog/tags/saltstack/">saltstack</a>, <a href="/blog/tags/vagrant/">vagrant</a>, <a href="/blog/tags/vm/">vm</a>
+  </div>
+
+        
+  <div class="addthis addthis_toolbox addthis_default_style">
+    
+      <a class="addthis_button_facebook_like" fb:like:layout="button_count"></a>
+    
+    
+      <a class="addthis_button_tweet"></a>
+    
+    
+      <a class="addthis_button_google_plusone" g:plusone:size="medium"></a>
+    
+    
+      <a class="addthis_button_pinterest_pinit" pi:pinit:layout="horizontal"></a>
+    
+    <a class="addthis_counter addthis_pill_style"></a>
+  </div>
+  <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js"></script>
+
+      
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+<section id="comment">
+  <h1 class="title">Kommentare</h1>
+
+  
+      <div id="fb-root"></div>
+<script>
+  (function(d, s, id) {
+    var js, fjs = d.getElementsByTagName(s)[0];
+    if (d.getElementById(id)) return;
+    js = d.createElement(s); js.id = id;
+    js.src = "//connect.facebook.net/en_US/all.js#xfbml=1&appId=123456789012345";
+    fjs.parentNode.insertBefore(js, fjs);
+  }(document, 'script', 'facebook-jssdk'));
+</script>
+
+<div class="fb-comments" data-href="http://mbrgm.de/blog/2014/11/14/multi-machine-setup-with-vagrant-and-saltstack/index.html" data-num-posts="5" data-width="840" data-colorscheme="light"></div>
+      
+  
+</section>
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Suche">
+    <input type="hidden" name="q" value="site:mbrgm.de">
+  </form>
+</div>
+
+  
+<div class="widget tag">
+  <h3 class="title">Kategorien</h3>
+  <ul class="entry">
+  
+    <li><a href="/blog/categories/configuration-management/">Configuration Management</a><small>1</small></li>
+  
+    <li><a href="/blog/categories/configuration-management/virtualisierung/">Virtualisierung</a><small>1</small></li>
+  
+  </ul>
+</div>
+
+
+  
+<div class="widget tag">
+  <h3 class="title">Tags</h3>
+  <ul class="entry">
+  
+    <li><a href="/blog/tags/docker/">docker</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/saltstack/">saltstack</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/vagrant/">vagrant</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/vm/">vm</a><small>1</small></li>
+  
+  </ul>
+</div>
+
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  
+  &copy; 2015 Marius Bergmann
+  
+</div>
+<div class="clearfix"></div></footer>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+</body>
+</html>

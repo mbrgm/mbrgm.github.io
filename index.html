@@ -49,6 +49,53 @@
     <header>
       
         <div class="icon"></div>
+        <time datetime="2014-11-14T07:50:00.000Z"><a href="/blog/2014/11/14/multi-machine-setup-with-vagrant-and-saltstack/">2014-11-14</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/blog/2014/11/14/multi-machine-setup-with-vagrant-and-saltstack/">Multi-Machine Setup with Vagrant and Saltstack</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p><a href="http://vagrantup.com">Vagrant</a> is a great way for developing and testing your
+configurations before deploying to real hosts. In combination with the
+<a href="http://www.saltstack.com/">Saltstack</a> provisioner, you can run your salt
+states on virtual machines and achieve really fast iteration cycles. While the
+Vagrant docs give a
+<a href="https://docs.vagrantup.com/v2/provisioning/salt.html">great example for masterless quickstart</a>
+with Vagrant and Saltstack, they do not elaborate on multi-machine
+configurations, like you are likely to encounter in bigger setups.</p>
+<p>In this post I will present you my two-machine Vagrantfile, which can be used
+as a starting point for your individual setup. My example configures a master
+host running salt-master and one minion, which will be provisioned for running
+<a href="http://docker.com">Docker</a>.</p>
+      
+    </div>
+    <footer>
+      
+        
+          <div class="alignleft">
+            <a href="/blog/2014/11/14/multi-machine-setup-with-vagrant-and-saltstack/#more" class="more-link">Read More</a>
+          </div>
+        
+        
+      
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
         <time datetime="2014-11-04T19:03:00.000Z"><a href="/blog/2014/11/04/hello-world/">2014-11-04</a></time>
       
       
@@ -93,8 +140,34 @@
 </div>
 
   
+<div class="widget tag">
+  <h3 class="title">Kategorien</h3>
+  <ul class="entry">
+  
+    <li><a href="/blog/categories/configuration-management/">Configuration Management</a><small>1</small></li>
+  
+    <li><a href="/blog/categories/configuration-management/virtualisierung/">Virtualisierung</a><small>1</small></li>
+  
+  </ul>
+</div>
+
 
   
+<div class="widget tag">
+  <h3 class="title">Tags</h3>
+  <ul class="entry">
+  
+    <li><a href="/blog/tags/docker/">docker</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/saltstack/">saltstack</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/vagrant/">vagrant</a><small>1</small></li>
+  
+    <li><a href="/blog/tags/vm/">vm</a><small>1</small></li>
+  
+  </ul>
+</div>
+
 </aside>
     <div class="clearfix"></div>
   </div>
