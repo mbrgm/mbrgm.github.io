@@ -1,6 +1,6 @@
 menu:
   Home: /
-  Archives: /archives
+  Archives: /blog/archives
 
 widgets:
 - search
