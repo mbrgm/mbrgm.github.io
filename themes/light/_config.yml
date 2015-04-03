@@ -1,6 +1,7 @@
 menu:
   Home: /
   Archiv: /blog/archives
+  Impressum: /impressum
 
 widgets:
 - search
